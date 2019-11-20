@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Main Page</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      #menu {
+        top: 0;
+        left: 0;
+      }
+      ul > * {
+        display: block;
+        float: left;
+        list-style: none;
+      }
+
+      img,
+      canvas {
+        image-rendering: crisp-edges;
+        border: 1px solid slategray;
+      }
+
+      .menuElement * {
+        display: block;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="cnv"></canvas>
+
+    <img src="" alt="" id="result" />
+
+    <div id="menu">
+      <ul id="menuList">
+        <li class="menuElement">
+          <button id="ctr">Canvas To Result</button>
+          <button id="rtc">Result To Canvas</button>
+        </li>
+        <li class="menuElement">
+          Send File
+          <input type="text" id="fileUrl" />
+          <button id="sendFile">Send</button>
+        </li>
+        <li class="menuElement">
+          Change Canvas Res
+          <input type="text" id="cnvResWidth" value="320" />
+          <input type="text" id="cnvResHeight" value="320" />
+          <button id="canvasRes">Resize!</button>
+        </li>
+        <li class="menuElement">
+          Change Result Res
+          <input type="text" id="resultResWidth" value="32" />
+          <input type="text" id="resultResHeight" value="32" />
+          <button id="resultRes">Resize!</button>
+        </li>
+        <li class="menuElement">
+          Stuff
+          <button id="binary">Binarize</button>
+        </li>
+        <li class="menuElement" id="filtersDropdown">
+          Change Filters
+        </li>
+      </ul>
+    </div>
+    <div style="float:left;">
+      <hr />
+      <h4 id="resultBox"></h4>
+    </div>
+
+    <script>
+      const cnv = document.querySelector("canvas#cnv");
+      const c = cnv.getContext("2d");
+
+      const result = document.querySelector("img#result");
+
+      const sendBtn = document.querySelector("button#sendFile");
+
+      sendBtn.onclick = () => {
+        let ref = document.querySelector("input#fileUrl").value;
+        fetch("https://cors-anywhere.herokuapp.com/" + ref).then(res => {
+          result.crossOrigin = "Anonymous";
+          console.dir(res);
+          result.src = res.url;
+        });
+      };
+
+      let binaryBtn = document.querySelector("button#binary");
+
+      binaryBtn.onclick = () => {
+        resultToCanvas();
+        let binaryArray = [];
+        imgdata = c.getImageData(0, 0, cnv.width, cnv.height);
+        for (let i = 0; i < imgdata.data.length; i += 4) {
+          let sum = imgdata.data[i] + imgdata.data[i + 1] + imgdata.data[i + 2];
+          let pixelVal = Math.round(sum / (256 * 3) - 0.1);
+          binaryArray.push(pixelVal);
+          imgdata.data[i] = imgdata.data[i + 1] = imgdata.data[i + 2] =
+            pixelVal * 255;
+          imgdata.data[i + 3] = 255;
+        }
+        c.putImageData(imgdata, 0, 0);
+        canvasToResult();
+        document.querySelector("h4#resultBox").innerHTML =
+          "[" + binaryArray.join(", ") + "]";
+      };
+
+      document.querySelector("button#canvasRes").onclick = () => {
+        canvasResize(
+          document.querySelector("input#cnvResWidth").value,
+          document.querySelector("input#cnvResHeight").value
+        );
+      };
+
+      document.querySelector("button#resultRes").onclick = () => {
+        resultResize(
+          document.querySelector("input#resultResWidth").value,
+          document.querySelector("input#resultResHeight").value
+        );
+      };
+
+      document.querySelector("button#ctr").onclick = () => {
+        canvasToResult();
+      };
+
+      document.querySelector("button#rtc").onclick = () => {
+        resultToCanvas();
+      };
+
+      function canvasResize(w, h) {
+        cnv.width = w;
+        cnv.height = h;
+      }
+
+      function resultResize(w, h) {
+        result.width = w;
+        result.height = h;
+      }
+
+      function canvasToResult() {
+        result.width = cnv.width;
+        result.height = cnv.height;
+        let cnvImg = cnv.toDataURL();
+        result.src = cnvImg;
+      }
+
+      function resultToCanvas() {
+        c.drawImage(result, 0, 0, cnv.width, cnv.height);
+      }
+      var trace = [0, 0];
+      var drawing = false;
+      colors = ["black", "white"];
+      colorIndex = 0;
+      c.strokeStyle = colors[colorIndex];
+
+      const binarizeBtn = document.querySelector("button#binary");
+
+      filters = [
+        { name: "blur", val: "0px" },
+        { name: "contrast", val: "1" },
+        { name: "drop-shadow", val: "0px 0px 0px white" },
+        { name: "grayscale", val: "0" }
+      ];
+
+      const filtersDropdown = document.querySelector("li#filtersDropdown");
+
+      filters.forEach(filter => {
+        filtersDropdown.innerHTML += `
+                <p>${filter.name}
+                <input class='filters' id='${filter.name}' value='${filter.val}' name='${filter.name}'/>
+                </p>
+                `;
+      });
+
+      const filtersInputs = document.querySelectorAll("input.filters");
+
+      for (let i = 0; i < filtersInputs.length; i++) {
+        filtersInputs[i].addEventListener("keyup", e => {
+          filtersString = "";
+          for (let j = 0; j < filtersInputs.length; j++) {
+            if (e.target.id == filters[j].name) {
+              filters[j].val = e.target.value;
+            }
+            filtersString += `${filters[j].name}(${filters[j].val}) `;
+          }
+          result.style.filter = filtersString;
+          console.log(filtersString);
+        });
+      }
+
+      cnv.addEventListener("mousedown", e => {
+        let x = e.clientX - cnv.offsetLeft;
+        let y = e.clientY - cnv.offsetTop;
+        trace[0] = x;
+        trace[1] = y;
+        drawing = true;
+        c.beginPath();
+      });
+      cnv.addEventListener("mouseup", e => {
+        drawing = false;
+      });
+      cnv.addEventListener("mousemove", e => {
+        if (drawing) {
+          let x = e.clientX - cnv.offsetLeft;
+          let y = e.clientY - cnv.offsetTop;
+          c.moveTo(trace[0], trace[1]);
+          c.lineTo(x, y);
+          c.stroke();
+          trace[0] = x;
+          trace[1] = y;
+          result.src = cnv.toDataURL();
+        }
+      });
+
+      document.body.addEventListener("keyup", e => {
+        if (e.keyCode == 32) {
+          if (colorIndex == 1) colorIndex = 0;
+          else colorIndex = 1;
+          c.strokeStyle = colors[colorIndex];
+        }
+      });
+    </script>
+  </body>
+</html>
